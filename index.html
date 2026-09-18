@@ -35,21 +35,39 @@
     const { useEffect, useMemo, useState } = React;
 
     const STORAGE_KEY = 'aris-reservas-v1';
-    const cabins = ['Cabina 1', 'Cabina 2', 'Cabina 3', 'Cabina 4', 'Cabina 5', 'Cabina 6'];
+    const CATALOG_KEY = 'aris-catalogo-v1';
+    const cabins = [
+      { name: 'Cabina 1', equipment: 'Sillón de peluquería y lavacabezas' },
+      { name: 'Cabina 2', equipment: 'Sillón de peluquería y lavacabezas' },
+      { name: 'Cabina 3', equipment: 'Camilla facial y vapor' },
+      { name: 'Cabina 4', equipment: 'Camilla de masaje' },
+      { name: 'Cabina 5', equipment: 'Mesa de manicura' },
+      { name: 'Cabina 6', equipment: 'Pedicura y espacio polivalente' }
+    ];
     const therapists = [
-      { id: 'laura', name: 'Laura Martín', specialty: 'Peluquería', color: 'bg-rose-100 text-rose-700' },
-      { id: 'marta', name: 'Marta Ruiz', specialty: 'Estética', color: 'bg-violet-100 text-violet-700' },
-      { id: 'ines', name: 'Inés Gómez', specialty: 'Uñas', color: 'bg-amber-100 text-amber-700' },
-      { id: 'sara', name: 'Sara León', specialty: 'Masajes', color: 'bg-emerald-100 text-emerald-700' }
+      { id: 'laura', name: 'Laura Martín', specialty: 'Peluquería', treatments: ['corte', 'color'], color: 'bg-rose-100 text-rose-700' },
+      { id: 'marta', name: 'Marta Ruiz', specialty: 'Estética', treatments: ['facial', 'masaje'], color: 'bg-violet-100 text-violet-700' },
+      { id: 'ines', name: 'Inés Gómez', specialty: 'Uñas', treatments: ['manicura', 'pedicura'], color: 'bg-amber-100 text-amber-700' },
+      { id: 'sara', name: 'Sara León', specialty: 'Bienestar', treatments: ['facial', 'masaje', 'pedicura'], color: 'bg-emerald-100 text-emerald-700' }
     ];
-    const treatments = [
-      { id: 'corte', name: 'Corte y peinado', duration: 60, price: 32 },
-      { id: 'color', name: 'Coloración', duration: 120, price: 58 },
-      { id: 'facial', name: 'Higiene facial', duration: 60, price: 45 },
-      { id: 'masaje', name: 'Masaje relajante', duration: 60, price: 50 },
-      { id: 'manicura', name: 'Manicura semipermanente', duration: 45, price: 28 },
-      { id: 'pedicura', name: 'Pedicura completa', duration: 60, price: 35 }
+    const defaultTreatments = [
+      { id: 'corte', name: 'Corte y peinado', duration: 60, price: 32, compatibleCabins: ['Cabina 1', 'Cabina 2'], equipment: 'Sillón y lavacabezas' },
+      { id: 'color', name: 'Coloración', duration: 120, price: 58, compatibleCabins: ['Cabina 1', 'Cabina 2'], equipment: 'Sillón y lavacabezas' },
+      { id: 'facial', name: 'Higiene facial', duration: 60, price: 45, compatibleCabins: ['Cabina 3', 'Cabina 6'], equipment: 'Camilla y vapor facial' },
+      { id: 'masaje', name: 'Masaje relajante', duration: 60, price: 50, compatibleCabins: ['Cabina 4', 'Cabina 6'], equipment: 'Camilla de masaje' },
+      { id: 'manicura', name: 'Manicura semipermanente', duration: 45, price: 28, compatibleCabins: ['Cabina 5', 'Cabina 6'], equipment: 'Mesa de manicura' },
+      { id: 'pedicura', name: 'Pedicura completa', duration: 60, price: 35, compatibleCabins: ['Cabina 6'], equipment: 'Sillón de pedicura' }
     ];
+
+    function loadCatalog() {
+      try {
+        const stored = localStorage.getItem(CATALOG_KEY);
+        if (stored) return JSON.parse(stored);
+        localStorage.setItem(CATALOG_KEY, JSON.stringify(defaultTreatments));
+      } catch {}
+      return defaultTreatments;
+    }
+    const treatments = loadCatalog();
 
     const todayISO = () => {
       const now = new Date();
@@ -84,6 +102,28 @@
       return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
     };
 
+    function findAutomaticAssignment(candidate, reservations) {
+      const treatment = treatments.find((item) => item.id === candidate.treatmentId);
+      const availableTherapists = therapists.filter((person) => person.treatments.includes(candidate.treatmentId));
+      const start = minutesFromTime(candidate.time);
+      const end = start + treatment.duration;
+
+      for (const person of availableTherapists) {
+        for (const cabin of treatment.compatibleCabins) {
+          const conflict = reservations.some((item) => {
+            if (item.id === candidate.id || item.date !== candidate.date || item.status === 'cancelled') return false;
+            const otherTreatment = treatments.find((entry) => entry.id === item.treatmentId);
+            const otherStart = minutesFromTime(item.time);
+            const otherEnd = otherStart + otherTreatment.duration;
+            const overlaps = start < otherEnd && end > otherStart;
+            return overlaps && (item.cabin === cabin || item.therapistId === person.id);
+          });
+          if (!conflict) return { therapistId: person.id, cabin };
+        }
+      }
+      return null;
+    }
+
     function App() {
       const [reservations, setReservations] = useState(loadReservations);
       const [selectedDate, setSelectedDate] = useState(todayISO());
@@ -107,6 +147,16 @@
         const treatment = treatments.find((entry) => entry.id === item.treatmentId);
         return sum + (treatment?.price || 0);
       }, 0);
+
+      const shareWhatsApp = () => {
+        const lines = dayReservations.map((item) => {
+          const treatment = treatments.find((entry) => entry.id === item.treatmentId);
+          const therapist = therapists.find((entry) => entry.id === item.therapistId);
+          return `• ${item.time} · ${item.client} · ${treatment.name} · ${therapist.name} · ${item.cabin}`;
+        });
+        const message = [`Reservas Aris Beauty — ${formatDay}`, '', ...(lines.length ? lines : ['Sin reservas']), '', `Total: ${dayReservations.length} citas`].join('\n');
+        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+      };
 
       const openNew = () => {
         setEditingId(null);
@@ -189,9 +239,9 @@
             </div>
 
             {activeView === 'agenda' && (
-              <AgendaView reservations={dayReservations} formatDay={formatDay} onEdit={(id) => { setEditingId(id); setModalOpen(true); }} onDelete={removeReservation} onStatus={changeStatus} onNew={openNew} />
+              <AgendaView reservations={dayReservations} formatDay={formatDay} onEdit={(id) => { setEditingId(id); setModalOpen(true); }} onDelete={removeReservation} onStatus={changeStatus} onNew={openNew} onShare={shareWhatsApp} />
             )}
-            {activeView === 'cabinas' && <CabinsView reservations={dayReservations} />}
+            {activeView === 'cabinas' && <CabinsView reservations={dayReservations} selectedDate={selectedDate} />}
             {activeView === 'equipo' && <TeamView reservations={dayReservations} />}
             {activeView === 'tratamientos' && <TreatmentsView />}
           </main>
@@ -230,7 +280,7 @@
       );
     }
 
-    function AgendaView({ reservations, formatDay, onEdit, onDelete, onStatus, onNew }) {
+    function AgendaView({ reservations, formatDay, onEdit, onDelete, onStatus, onNew, onShare }) {
       return (
         <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-soft">
           <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
@@ -238,7 +288,10 @@
               <h2 className="text-lg font-black capitalize">{formatDay}</h2>
               <p className="text-sm text-stone-500">Citas ordenadas por hora</p>
             </div>
-            <span className="rounded-full bg-blush/50 px-3 py-1 text-xs font-bold">{reservations.length} citas</span>
+            <div className="flex items-center gap-2">
+              <span className="hidden rounded-full bg-blush/50 px-3 py-1 text-xs font-bold sm:inline">{reservations.length} citas</span>
+              <button onClick={onShare} className="rounded-xl bg-[#25D366] px-3 py-2 text-xs font-black text-white transition hover:bg-[#1fb85a]">WhatsApp</button>
+            </div>
           </div>
           {reservations.length === 0 ? (
             <div className="px-6 py-16 text-center">
@@ -282,16 +335,31 @@
       );
     }
 
-    function CabinsView({ reservations }) {
+    function CabinsView({ reservations, selectedDate }) {
+      const [now, setNow] = useState(new Date());
+      useEffect(() => {
+        const timer = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(timer);
+      }, []);
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      const isToday = selectedDate === todayISO();
       return (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {cabins.map((cabin) => {
-            const cabinReservations = reservations.filter((item) => item.cabin === cabin);
+            const cabinReservations = reservations.filter((item) => item.cabin === cabin.name);
+            const activeReservation = isToday && cabinReservations.find((item) => {
+              const service = treatments.find((entry) => entry.id === item.treatmentId);
+              const start = minutesFromTime(item.time);
+              return nowMinutes >= start && nowMinutes < start + service.duration;
+            });
             return (
-              <article key={cabin} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <article key={cabin.name} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
                 <div className="mb-5 flex items-center justify-between">
-                  <h2 className="font-black">{cabin}</h2>
-                  <span className={`h-3 w-3 rounded-full ${cabinReservations.length ? 'bg-amber-400' : 'bg-emerald-500'}`} title={cabinReservations.length ? 'Con reservas' : 'Libre'}></span>
+                  <div>
+                    <h2 className="font-black">{cabin.name}</h2>
+                    <p className="mt-1 text-xs text-stone-400">{cabin.equipment}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${activeReservation ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>{!isToday ? `${cabinReservations.length} citas` : activeReservation ? 'Ocupada ahora' : 'Libre ahora'}</span>
                 </div>
                 {cabinReservations.length ? cabinReservations.map((item) => (
                   <div key={item.id} className="mb-2 rounded-xl bg-stone-50 p-3 text-sm">
@@ -317,6 +385,14 @@
                 <h2 className="font-black">{person.name}</h2>
                 <p className="text-sm text-stone-500">{person.specialty}</p>
                 <p className="mt-4 rounded-xl bg-stone-50 py-2 text-sm font-bold">{count} citas hoy</p>
+                <div className="mt-3 space-y-2 text-left">
+                  {reservations.filter((item) => item.therapistId === person.id).map((item) => (
+                    <div key={item.id} className="rounded-lg border border-stone-100 px-3 py-2 text-xs">
+                      <strong>{item.time}</strong> · {item.client}
+                    </div>
+                  ))}
+                  {!count && <p className="text-center text-xs text-stone-400">Profesional disponible</p>}
+                </div>
               </article>
             );
           })}
@@ -328,12 +404,18 @@
       return (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {treatments.map((treatment) => (
-            <article key={treatment.id} className="flex items-center justify-between rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+            <article key={treatment.id} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="font-black">{treatment.name}</h2>
                 <p className="text-sm text-stone-500">{treatment.duration} minutos</p>
               </div>
               <strong className="rounded-xl bg-blush/50 px-3 py-2">{treatment.price} €</strong>
+              </div>
+              <div className="mt-4 border-t border-stone-100 pt-4 text-xs text-stone-500">
+                <p><strong className="text-ink">Equipamiento:</strong> {treatment.equipment}</p>
+                <p className="mt-1"><strong className="text-ink">Cabinas:</strong> {treatment.compatibleCabins.join(', ')}</p>
+              </div>
             </article>
           ))}
         </section>
@@ -346,6 +428,16 @@
       });
       const [error, setError] = useState('');
       const treatment = treatments.find((item) => item.id === form.treatmentId);
+
+      useEffect(() => {
+        const assignment = findAutomaticAssignment(form, reservations);
+        if (assignment) {
+          setForm((current) => ({ ...current, ...assignment }));
+          setError('');
+        } else {
+          setError('No hay una combinación de cabina y profesional disponible para este horario. Prueba otra hora.');
+        }
+      }, [form.treatmentId, form.date, form.time]);
 
       const submit = (event) => {
         event.preventDefault();
@@ -400,19 +492,24 @@
               </Field>
               <Field label="Profesional">
                 <select value={form.therapistId} onChange={(e) => update('therapistId', e.target.value)} className="input">
-                  {therapists.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.specialty}</option>)}
+                  {therapists.filter((item) => item.treatments.includes(form.treatmentId)).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.specialty}</option>)}
                 </select>
+                <span className="mt-1 block text-xs font-medium text-emerald-600">✓ Asignación automática disponible</span>
               </Field>
               <Field label="Cabina">
                 <select value={form.cabin} onChange={(e) => update('cabin', e.target.value)} className="input">
-                  {cabins.map((item) => <option key={item}>{item}</option>)}
+                  {treatment.compatibleCabins.map((item) => <option key={item}>{item}</option>)}
                 </select>
+                <span className="mt-1 block text-xs text-stone-400">Solo cabinas con equipamiento compatible</span>
               </Field>
               <Field label="Notas" className="sm:col-span-2">
                 <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Alergias, preferencias o información útil" className="input min-h-24 resize-y"></textarea>
               </Field>
               <div className="sm:col-span-2 rounded-xl bg-stone-50 px-4 py-3 text-sm">
                 <strong>Final estimado:</strong> {addMinutes(form.time, treatment.duration)} · <strong>Precio:</strong> {treatment.price} €
+              </div>
+              <div className="sm:col-span-2 rounded-xl border border-blush bg-rose-50/60 px-4 py-3 text-sm text-stone-600">
+                <strong className="text-ink">Política de cancelación:</strong> avísanos con al menos 24 horas de antelación. Si el tratamiento requiere seña, se abonará y gestionará personalmente en el centro.
               </div>
               {error && <div role="alert" className="sm:col-span-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">⚠ {error}</div>}
               <div className="flex justify-end gap-3 sm:col-span-2">
