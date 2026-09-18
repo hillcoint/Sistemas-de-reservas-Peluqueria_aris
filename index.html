@@ -133,7 +133,10 @@
           <header className="border-b border-stone-200 bg-white/90 backdrop-blur">
             <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
               <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-ink text-lg font-black text-blush">A</div>
+                <div className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-2xl bg-ink text-lg font-black text-blush shadow-sm">
+                  <span className="absolute -right-2 -top-2 h-6 w-6 rounded-full bg-blush/30"></span>
+                  <span className="relative">A</span>
+                </div>
                 <div>
                   <p className="font-bold leading-tight">Aris Beauty</p>
                   <p className="text-sm text-stone-500">Agenda del centro</p>
@@ -146,17 +149,25 @@
           </header>
 
           <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
-            <div className="mb-7 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-              <div>
-                <p className="mb-1 text-sm font-bold uppercase tracking-widest text-plum">Organización diaria</p>
-                <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Todo el centro, de un vistazo</h1>
-                <p className="mt-2 text-stone-500">Sin huecos inesperados ni reservas duplicadas.</p>
+            <section className="relative mb-7 overflow-hidden rounded-[2rem] bg-ink shadow-soft">
+              <div className="absolute -left-20 -top-24 h-64 w-64 rounded-full bg-blush/10"></div>
+              <div className="absolute bottom-0 left-1/3 h-28 w-28 rounded-full bg-white/5"></div>
+              <div className="grid min-h-[300px] lg:grid-cols-[1.25fr_.75fr]">
+                <div className="relative z-10 flex flex-col justify-center px-6 py-9 sm:px-10 lg:py-12">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[.22em] text-blush">Belleza · Estética · Uñas</p>
+                  <h1 className="max-w-2xl text-3xl font-black tracking-tight text-white sm:text-5xl">Una agenda tan cuidada como tus clientes</h1>
+                  <p className="mt-4 max-w-xl text-base leading-relaxed text-stone-300">Organiza profesionales, cabinas y tratamientos sin huecos inesperados ni reservas duplicadas.</p>
+                  <label className="mt-7 flex w-full max-w-xs items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-lg">
+                    <span className="text-sm font-bold text-ink">Fecha</span>
+                    <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-ink outline-none" />
+                  </label>
+                </div>
+                <div className="relative min-h-[210px] lg:min-h-[300px]">
+                  <div className="absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-ink to-transparent lg:inset-y-0 lg:left-0 lg:h-auto lg:w-28 lg:bg-gradient-to-r"></div>
+                  <img src="beauty-hero.webp" alt="Ilustración de peluquería, estética, manicura y spa" className="absolute inset-0 h-full w-full object-cover object-[center_38%]" />
+                </div>
               </div>
-              <label className="flex w-full items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm lg:w-auto">
-                <span className="text-sm font-bold">Fecha</span>
-                <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="bg-transparent text-sm font-semibold outline-none" />
-              </label>
-            </div>
+            </section>
 
             <section className="mb-7 grid gap-4 sm:grid-cols-3">
               <Stat label="Citas del día" value={dayReservations.length} hint="reservas activas" />
@@ -208,7 +219,8 @@
 
     function Stat({ label, value, hint }) {
       return (
-        <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+        <article className="relative overflow-hidden rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+          <span className="absolute -right-5 -top-5 h-16 w-16 rounded-full bg-blush/20"></span>
           <p className="text-sm font-bold text-stone-500">{label}</p>
           <div className="mt-2 flex items-end justify-between gap-3">
             <strong className="text-3xl font-black">{value}</strong>
