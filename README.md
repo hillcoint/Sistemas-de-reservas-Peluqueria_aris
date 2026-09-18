@@ -8,7 +8,12 @@ Aplicación web sencilla para gestionar la agenda de un centro de peluquería, b
 - Alta, edición y eliminación de reservas.
 - Seis cabinas y cuatro profesionales.
 - Catálogo de tratamientos con duración y precio.
+- Compatibilidad de cabinas y equipamiento por tratamiento.
+- Asignación automática de profesional y cabina disponibles.
 - Control de solapamientos por cabina y profesional.
+- Panel de ocupación por cabina y vista diaria por profesional.
+- Política de cancelación visible en el formulario.
+- Resumen diario preparado para compartir por WhatsApp.
 - Estados de reserva: confirmada o pendiente.
 - Datos guardados en `localStorage`, sin servidor ni base de datos.
 - Diseño adaptable a móvil y ordenador.
