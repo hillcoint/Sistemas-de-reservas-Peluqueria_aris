@@ -1,0 +1,5 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base { body { @apply m-0 min-h-screen bg-cream text-ink antialiased; } button,input,select,textarea { font: inherit; } }
+@layer components { .field { @apply w-full rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-plum focus:ring-4 focus:ring-blush/50; } }

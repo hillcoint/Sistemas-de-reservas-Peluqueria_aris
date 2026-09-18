@@ -18,8 +18,15 @@ Aplicación web sencilla para gestionar la agenda de un centro de peluquería, b
 - Datos guardados en `localStorage`, sin servidor ni base de datos.
 - Diseño adaptable a móvil y ordenador.
 
-## Uso
+## Desarrollo con React/Vite
 
-Abre `index.html` en el navegador. También puede publicarse directamente con GitHub Pages desde la rama `main` y la carpeta raíz.
+```bash
+npm install
+npm run dev
+```
+
+El proyecto está estructurado para poder importarlo desde Lovable. Los cambios enviados a `main` se compilan y publican mediante GitHub Actions.
+
+Para la primera publicación, configura **Settings → Pages → Source: GitHub Actions**.
 
 > Los datos se guardan únicamente en el navegador y dispositivo desde el que se utiliza la aplicación.
