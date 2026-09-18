@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#362d35" />
+  <meta name="description" content="Agenda y reservas para centros de peluquería, belleza, estética y uñas." />
+  <title>Aris · Agenda del centro</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23362d35'/%3E%3Cpath d='M18 43 30 16h5l12 27h-8l-2-6H27l-2 6h-7Zm11-12h6l-3-8-3 8Z' fill='%23f7c6cf'/%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: '#362d35',
+            blush: '#f7c6cf',
+            cream: '#fbf8f6',
+            plum: '#755668',
+            sage: '#9bb0a5'
+          },
+          boxShadow: { soft: '0 12px 35px rgba(54,45,53,.08)' }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen bg-cream text-ink antialiased">
+  <div id="root"></div>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useEffect, useMemo, useState } = React;
+
+    const STORAGE_KEY = 'aris-reservas-v1';
+    const cabins = ['Cabina 1', 'Cabina 2', 'Cabina 3', 'Cabina 4', 'Cabina 5', 'Cabina 6'];
+    const therapists = [
+      { id: 'laura', name: 'Laura Martín', specialty: 'Peluquería', color: 'bg-rose-100 text-rose-700' },
+      { id: 'marta', name: 'Marta Ruiz', specialty: 'Estética', color: 'bg-violet-100 text-violet-700' },
+      { id: 'ines', name: 'Inés Gómez', specialty: 'Uñas', color: 'bg-amber-100 text-amber-700' },
+      { id: 'sara', name: 'Sara León', specialty: 'Masajes', color: 'bg-emerald-100 text-emerald-700' }
+    ];
+    const treatments = [
+      { id: 'corte', name: 'Corte y peinado', duration: 60, price: 32 },
+      { id: 'color', name: 'Coloración', duration: 120, price: 58 },
+      { id: 'facial', name: 'Higiene facial', duration: 60, price: 45 },
+      { id: 'masaje', name: 'Masaje relajante', duration: 60, price: 50 },
+      { id: 'manicura', name: 'Manicura semipermanente', duration: 45, price: 28 },
+      { id: 'pedicura', name: 'Pedicura completa', duration: 60, price: 35 }
+    ];
+
+    const todayISO = () => {
+      const now = new Date();
+      return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    };
+
+    const seedReservations = () => {
+      const today = todayISO();
+      return [
+        { id: crypto.randomUUID(), date: today, time: '09:00', client: 'Ana López', phone: '600 123 456', treatmentId: 'corte', therapistId: 'laura', cabin: 'Cabina 1', notes: '', status: 'confirmed' },
+        { id: crypto.randomUUID(), date: today, time: '10:30', client: 'Carmen Díaz', phone: '611 234 567', treatmentId: 'facial', therapistId: 'marta', cabin: 'Cabina 3', notes: 'Piel sensible', status: 'confirmed' },
+        { id: crypto.randomUUID(), date: today, time: '12:00', client: 'Lucía Pérez', phone: '622 345 678', treatmentId: 'manicura', therapistId: 'ines', cabin: 'Cabina 5', notes: '', status: 'pending' }
+      ];
+    };
+
+    function loadReservations() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        return stored ? JSON.parse(stored) : seedReservations();
+      } catch {
+        return seedReservations();
+      }
+    }
+
+    const minutesFromTime = (time) => {
+      const [hour, minute] = time.split(':').map(Number);
+      return hour * 60 + minute;
+    };
+
+    const addMinutes = (time, duration) => {
+      const total = minutesFromTime(time) + duration;
+      return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+    };
+
+    function App() {
+      const [reservations, setReservations] = useState(loadReservations);
+      const [selectedDate, setSelectedDate] = useState(todayISO());
+      const [activeView, setActiveView] = useState('agenda');
+      const [isModalOpen, setModalOpen] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [toast, setToast] = useState('');
+
+      useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(reservations)), [reservations]);
+      useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => setToast(''), 2800);
+        return () => clearTimeout(timer);
+      }, [toast]);
+
+      const dayReservations = useMemo(() => reservations
+        .filter((reservation) => reservation.date === selectedDate && reservation.status !== 'cancelled')
+        .sort((a, b) => a.time.localeCompare(b.time)), [reservations, selectedDate]);
+
+      const totalIncome = dayReservations.reduce((sum, item) => {
+        const treatment = treatments.find((entry) => entry.id === item.treatmentId);
+        return sum + (treatment?.price || 0);
+      }, 0);
+
+      const openNew = () => {
+        setEditingId(null);
+        setModalOpen(true);
+      };
+
+      const removeReservation = (id) => {
+        if (!confirm('¿Quieres eliminar esta reserva?')) return;
+        setReservations((current) => current.filter((item) => item.id !== id));
+        setToast('Reserva eliminada');
+      };
+
+      const changeStatus = (id) => {
+        setReservations((current) => current.map((item) => item.id === id
+          ? { ...item, status: item.status === 'confirmed' ? 'pending' : 'confirmed' }
+          : item));
+      };
+
+      const formatDay = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+        .format(new Date(`${selectedDate}T12:00:00`));
+
+      return (
+        <div className="min-h-screen">
+          <header className="border-b border-stone-200 bg-white/90 backdrop-blur">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-ink text-lg font-black text-blush">A</div>
+                <div>
+                  <p className="font-bold leading-tight">Aris Beauty</p>
+                  <p className="text-sm text-stone-500">Agenda del centro</p>
+                </div>
+              </div>
+              <button onClick={openNew} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-plum focus:outline-none focus:ring-4 focus:ring-blush">
+                <span className="mr-1 text-lg">＋</span> Nueva reserva
+              </button>
+            </div>
+          </header>
+
+          <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
+            <div className="mb-7 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+              <div>
+                <p className="mb-1 text-sm font-bold uppercase tracking-widest text-plum">Organización diaria</p>
+                <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Todo el centro, de un vistazo</h1>
+                <p className="mt-2 text-stone-500">Sin huecos inesperados ni reservas duplicadas.</p>
+              </div>
+              <label className="flex w-full items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm lg:w-auto">
+                <span className="text-sm font-bold">Fecha</span>
+                <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="bg-transparent text-sm font-semibold outline-none" />
+              </label>
+            </div>
+
+            <section className="mb-7 grid gap-4 sm:grid-cols-3">
+              <Stat label="Citas del día" value={dayReservations.length} hint="reservas activas" />
+              <Stat label="Cabinas libres" value={`${Math.max(0, 6 - new Set(dayReservations.map((item) => item.cabin)).size)}/6`} hint="sin uso hoy" />
+              <Stat label="Previsión" value={`${totalIncome} €`} hint="servicios reservados" />
+            </section>
+
+            <div className="mb-5 flex gap-2 overflow-x-auto rounded-2xl border border-stone-200 bg-white p-1.5 shadow-sm">
+              {[
+                ['agenda', 'Agenda'],
+                ['cabinas', 'Cabinas'],
+                ['equipo', 'Equipo'],
+                ['tratamientos', 'Tratamientos']
+              ].map(([id, label]) => (
+                <button key={id} onClick={() => setActiveView(id)} className={`min-w-max rounded-xl px-4 py-2 text-sm font-bold transition ${activeView === id ? 'bg-ink text-white' : 'text-stone-500 hover:bg-stone-100'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {activeView === 'agenda' && (
+              <AgendaView reservations={dayReservations} formatDay={formatDay} onEdit={(id) => { setEditingId(id); setModalOpen(true); }} onDelete={removeReservation} onStatus={changeStatus} onNew={openNew} />
+            )}
+            {activeView === 'cabinas' && <CabinsView reservations={dayReservations} />}
+            {activeView === 'equipo' && <TeamView reservations={dayReservations} />}
+            {activeView === 'tratamientos' && <TreatmentsView />}
+          </main>
+
+          {isModalOpen && (
+            <ReservationModal
+              reservation={editingId ? reservations.find((item) => item.id === editingId) : null}
+              selectedDate={selectedDate}
+              reservations={reservations}
+              onClose={() => setModalOpen(false)}
+              onSave={(reservation) => {
+                setReservations((current) => editingId
+                  ? current.map((item) => item.id === editingId ? reservation : item)
+                  : [...current, reservation]);
+                setModalOpen(false);
+                setToast(editingId ? 'Reserva actualizada' : 'Reserva creada correctamente');
+              }}
+            />
+          )}
+
+          {toast && <div role="status" className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white shadow-xl">✓ {toast}</div>}
+        </div>
+      );
+    }
+
+    function Stat({ label, value, hint }) {
+      return (
+        <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+          <p className="text-sm font-bold text-stone-500">{label}</p>
+          <div className="mt-2 flex items-end justify-between gap-3">
+            <strong className="text-3xl font-black">{value}</strong>
+            <span className="text-xs text-stone-400">{hint}</span>
+          </div>
+        </article>
+      );
+    }
+
+    function AgendaView({ reservations, formatDay, onEdit, onDelete, onStatus, onNew }) {
+      return (
+        <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-soft">
+          <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+            <div>
+              <h2 className="text-lg font-black capitalize">{formatDay}</h2>
+              <p className="text-sm text-stone-500">Citas ordenadas por hora</p>
+            </div>
+            <span className="rounded-full bg-blush/50 px-3 py-1 text-xs font-bold">{reservations.length} citas</span>
+          </div>
+          {reservations.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-stone-100 text-2xl">✦</div>
+              <h3 className="font-black">Día libre de reservas</h3>
+              <p className="mb-5 mt-1 text-sm text-stone-500">Añade la primera cita para esta fecha.</p>
+              <button onClick={onNew} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-bold text-white">Nueva reserva</button>
+            </div>
+          ) : (
+            <div className="divide-y divide-stone-100">
+              {reservations.map((reservation) => {
+                const treatment = treatments.find((item) => item.id === reservation.treatmentId);
+                const therapist = therapists.find((item) => item.id === reservation.therapistId);
+                return (
+                  <article key={reservation.id} className="group grid gap-4 px-5 py-5 transition hover:bg-stone-50 md:grid-cols-[90px_1.2fr_1fr_auto] md:items-center">
+                    <div>
+                      <p className="text-xl font-black">{reservation.time}</p>
+                      <p className="text-xs text-stone-400">hasta {addMinutes(reservation.time, treatment.duration)}</p>
+                    </div>
+                    <div>
+                      <p className="font-black">{reservation.client}</p>
+                      <p className="text-sm text-stone-500">{treatment.name} · {treatment.duration} min</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${therapist.color}`}>{therapist.name}</span>
+                      <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-stone-600">{reservation.cabin}</span>
+                      <button onClick={() => onStatus(reservation.id)} className={`rounded-full px-3 py-1 text-xs font-bold ${reservation.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {reservation.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => onEdit(reservation.id)} aria-label={`Editar reserva de ${reservation.client}`} className="rounded-lg border border-stone-200 px-3 py-2 text-sm font-bold hover:bg-white">Editar</button>
+                      <button onClick={() => onDelete(reservation.id)} aria-label={`Eliminar reserva de ${reservation.client}`} className="rounded-lg px-3 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50">Eliminar</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      );
+    }
+
+    function CabinsView({ reservations }) {
+      return (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {cabins.map((cabin) => {
+            const cabinReservations = reservations.filter((item) => item.cabin === cabin);
+            return (
+              <article key={cabin} className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+                <div className="mb-5 flex items-center justify-between">
+                  <h2 className="font-black">{cabin}</h2>
+                  <span className={`h-3 w-3 rounded-full ${cabinReservations.length ? 'bg-amber-400' : 'bg-emerald-500'}`} title={cabinReservations.length ? 'Con reservas' : 'Libre'}></span>
+                </div>
+                {cabinReservations.length ? cabinReservations.map((item) => (
+                  <div key={item.id} className="mb-2 rounded-xl bg-stone-50 p-3 text-sm">
+                    <p className="font-bold">{item.time} · {item.client}</p>
+                    <p className="text-stone-500">{treatments.find((t) => t.id === item.treatmentId).name}</p>
+                  </div>
+                )) : <p className="text-sm text-stone-400">Sin reservas para este día</p>}
+              </article>
+            );
+          })}
+        </section>
+      );
+    }
+
+    function TeamView({ reservations }) {
+      return (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {therapists.map((person) => {
+            const count = reservations.filter((item) => item.therapistId === person.id).length;
+            return (
+              <article key={person.id} className="rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm">
+                <div className={`mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full text-lg font-black ${person.color}`}>{person.name.split(' ').map((word) => word[0]).join('')}</div>
+                <h2 className="font-black">{person.name}</h2>
+                <p className="text-sm text-stone-500">{person.specialty}</p>
+                <p className="mt-4 rounded-xl bg-stone-50 py-2 text-sm font-bold">{count} citas hoy</p>
+              </article>
+            );
+          })}
+        </section>
+      );
+    }
+
+    function TreatmentsView() {
+      return (
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {treatments.map((treatment) => (
+            <article key={treatment.id} className="flex items-center justify-between rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <div>
+                <h2 className="font-black">{treatment.name}</h2>
+                <p className="text-sm text-stone-500">{treatment.duration} minutos</p>
+              </div>
+              <strong className="rounded-xl bg-blush/50 px-3 py-2">{treatment.price} €</strong>
+            </article>
+          ))}
+        </section>
+      );
+    }
+
+    function ReservationModal({ reservation, selectedDate, reservations, onClose, onSave }) {
+      const [form, setForm] = useState(reservation || {
+        id: crypto.randomUUID(), date: selectedDate, time: '09:00', client: '', phone: '', treatmentId: 'corte', therapistId: 'laura', cabin: 'Cabina 1', notes: '', status: 'confirmed'
+      });
+      const [error, setError] = useState('');
+      const treatment = treatments.find((item) => item.id === form.treatmentId);
+
+      const submit = (event) => {
+        event.preventDefault();
+        setError('');
+        const start = minutesFromTime(form.time);
+        const end = start + treatment.duration;
+        const conflict = reservations.find((item) => {
+          if (item.id === form.id || item.date !== form.date || item.status === 'cancelled') return false;
+          const otherTreatment = treatments.find((entry) => entry.id === item.treatmentId);
+          const otherStart = minutesFromTime(item.time);
+          const otherEnd = otherStart + otherTreatment.duration;
+          const overlaps = start < otherEnd && end > otherStart;
+          return overlaps && (item.cabin === form.cabin || item.therapistId === form.therapistId);
+        });
+        if (conflict) {
+          const resource = conflict.cabin === form.cabin ? form.cabin : therapists.find((item) => item.id === form.therapistId).name;
+          setError(`${resource} ya tiene una reserva que coincide con este horario.`);
+          return;
+        }
+        onSave(form);
+      };
+
+      const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+
+      return (
+        <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/55 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+          <div role="dialog" aria-modal="true" aria-labelledby="modal-title" className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+            <div className="sticky top-0 flex items-center justify-between border-b border-stone-100 bg-white px-5 py-4 sm:px-7">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-plum">Agenda</p>
+                <h2 id="modal-title" className="text-xl font-black">{reservation ? 'Editar reserva' : 'Nueva reserva'}</h2>
+              </div>
+              <button onClick={onClose} aria-label="Cerrar" className="grid h-10 w-10 place-items-center rounded-full bg-stone-100 text-xl">×</button>
+            </div>
+            <form onSubmit={submit} className="grid gap-5 p-5 sm:grid-cols-2 sm:p-7">
+              <Field label="Cliente" className="sm:col-span-2">
+                <input required value={form.client} onChange={(e) => update('client', e.target.value)} placeholder="Nombre y apellidos" className="input" />
+              </Field>
+              <Field label="Teléfono">
+                <input required type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="600 000 000" className="input" />
+              </Field>
+              <Field label="Tratamiento">
+                <select value={form.treatmentId} onChange={(e) => update('treatmentId', e.target.value)} className="input">
+                  {treatments.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.duration} min</option>)}
+                </select>
+              </Field>
+              <Field label="Fecha">
+                <input required type="date" value={form.date} onChange={(e) => update('date', e.target.value)} className="input" />
+              </Field>
+              <Field label="Hora">
+                <input required type="time" min="08:00" max="20:00" step="900" value={form.time} onChange={(e) => update('time', e.target.value)} className="input" />
+              </Field>
+              <Field label="Profesional">
+                <select value={form.therapistId} onChange={(e) => update('therapistId', e.target.value)} className="input">
+                  {therapists.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.specialty}</option>)}
+                </select>
+              </Field>
+              <Field label="Cabina">
+                <select value={form.cabin} onChange={(e) => update('cabin', e.target.value)} className="input">
+                  {cabins.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </Field>
+              <Field label="Notas" className="sm:col-span-2">
+                <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Alergias, preferencias o información útil" className="input min-h-24 resize-y"></textarea>
+              </Field>
+              <div className="sm:col-span-2 rounded-xl bg-stone-50 px-4 py-3 text-sm">
+                <strong>Final estimado:</strong> {addMinutes(form.time, treatment.duration)} · <strong>Precio:</strong> {treatment.price} €
+              </div>
+              {error && <div role="alert" className="sm:col-span-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">⚠ {error}</div>}
+              <div className="flex justify-end gap-3 sm:col-span-2">
+                <button type="button" onClick={onClose} className="rounded-xl border border-stone-200 px-5 py-3 text-sm font-bold">Cancelar</button>
+                <button type="submit" className="rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white hover:bg-plum">Guardar reserva</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    function Field({ label, className = '', children }) {
+      return (
+        <label className={`block ${className}`}>
+          <span className="mb-1.5 block text-sm font-bold">{label}</span>
+          {children}
+        </label>
+      );
+    }
+
+    const style = document.createElement('style');
+    style.textContent = `.input{width:100%;border:1px solid #e7e1dd;border-radius:.75rem;background:#fff;padding:.75rem .85rem;font-size:.9rem;outline:none}.input:focus{border-color:#755668;box-shadow:0 0 0 3px rgba(247,198,207,.55)}`;
+    document.head.appendChild(style);
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
